@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Presupuestos - Rectificación Padua</title>
+  <style>
+    :root {
+      --primary: #0f172a;
+      --accent: #2563eb;
+      --bg: #f1f5f9;
+      --card-bg: #ffffff;
+      --border: #cbd5e1;
+      --text: #1e293b;
+      --danger: #dc2626;
+      --success: #16a34a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 15px; }
+
+    /* Navegación por pestañas */
+    .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+    .tab-btn {
+      padding: 12px 24px; font-weight: bold; background: #e2e8f0; border: none;
+      border-radius: 8px 8px 0 0; cursor: pointer; color: var(--text); font-size: 1rem;
+    }
+    .tab-btn.active { background: var(--accent); color: white; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    h2 { font-size: 1.2rem; margin-bottom: 15px; color: var(--primary); }
+
+    label { font-weight: bold; font-size: 0.85rem; display: block; margin-bottom: 4px; }
+    input, select, button { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 10px; font-size: 0.9rem; }
+    button { background: var(--accent); color: white; font-weight: bold; cursor: pointer; border: none; }
+    button:hover { opacity: 0.9; }
+    button.btn-danger { background: var(--danger); }
+    button.btn-secondary { background: #64748b; }
+
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+
+    /* Hoja de Presupuesto estilo Planilla */
+    .presupuesto-paper {
+      background: #fff; border: 2px solid #000; padding: 15px; max-width: 800px; margin: 0 auto; color: #000;
+    }
+    .paper-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 8px; }
+    .paper-header h1 { font-size: 1.5rem; text-transform: uppercase; letter-spacing: 1px; }
+    .paper-header p { font-size: 0.8rem; font-weight: bold; }
+    
+    .client-data-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 8px; border-bottom: 1px solid #000; padding-bottom: 6px; }
+    .client-data-grid p { font-size: 0.85rem; }
+
+    table.tabla-presupuesto { width: 100%; border-collapse: collapse; margin-top: 5px; }
+    table.tabla-presupuesto th, table.tabla-presupuesto td { border: 1px solid #000; padding: 2px 6px; font-size: 0.8rem; }
+    table.tabla-presupuesto th { text-align: left; background: #f8fafc; font-size: 0.82rem; }
+    
+    .col-si { width: 40px; text-align: center; }
+    .col-importe { width: 110px; text-align: right; }
+
+    .subtotal-row, .total-row { font-weight: bold; background: #f1f5f9; }
+
+    /* Estilos del editor de precios */
+    .price-matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .price-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .price-item label { margin: 0; font-size: 0.8rem; flex: 1; padding-right: 5px; }
+    .price-item input { width: 100px; margin: 0; text-align: right; font-weight: bold; }
+
+    /* AJUSTES DE IMPRESIÓN PARA HOJA A4 ÚNICA */
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm 8mm 10mm;
+    }
+
+    @media print {
+      .no-print, .nav-tabs { display: none !important; }
+      body { background: white; padding: 0; margin: 0; }
+      .presupuesto-paper { 
+        border: 1.5px solid #000; 
+        width: 100%; 
+        max-width: 100%; 
+        padding: 8px 12px; 
+        box-sizing: border-box;
+      }
+      .tab-content { display: block !important; }
+      #tab-inventario { display: none !important; }
+
+      .paper-header h1 { font-size: 1.3rem; }
+      .paper-header p { font-size: 0.75rem; }
+      .client-data-grid p { font-size: 0.8rem; }
+
+      table.tabla-presupuesto th, table.tabla-presupuesto td { 
+        padding: 1.5px 5px !important; 
+        font-size: 0.76rem !important; 
+      }
+
+      input[type="number"], input[type="text"] {
+        font-size: 0.76rem !important;
+      }
+
+      input[type="checkbox"] {
+        transform: scale(0.9);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PESTAÑAS -->
+  <div class="nav-tabs no-print">
+    <button class="tab-btn active" onclick="switchTab('presupuestador')">Crear Presupuesto</button>
+    <button class="tab-btn" onclick="switchTab('inventario')">Gestión de Inventario y Precios</button>
+  </div>
+
+  <!-- PESTAÑA 1: PRESUPUESTADOR -->
+  <div id="tab-presupuestador" class="tab-content active">
+    
+    <div class="card no-print">
+      <h2>1. Selección de Vehículo / Motor</h2>
+      <div class="form-grid">
+        <div>
+          <label>Motor Registrado:</label>
+          <select id="select-engine" onchange="cargarPreciosMotor()">
+            <option value="">-- Seleccionar de la lista --</option>
+          </select>
+        </div>
+        <div>
+          <label>Señor/a (Cliente):</label>
+          <input type="text" id="client-name" placeholder="Nombre del cliente">
+        </div>
+        <div>
+          <label>Marca:</label>
+          <input type="text" id="client-brand" placeholder="Ej: VW / Fiat / Ford">
+        </div>
+        <div>
+          <label>Nº Motor:</label>
+          <input type="text" id="engine-num" placeholder="Número de Motor">
+        </div>
+        <div>
+          <label>Teléfono:</label>
+          <input type="text" id="client-tel" placeholder="Teléfono de contacto">
+        </div>
+      </div>
+    </div>
+
+    <!-- PLANILLA DE PRESUPUESTO -->
+    <div class="presupuesto-paper">
+      <div class="paper-header">
+        <h1>Rectificación Padua</h1>
+        <p>Motores en General</p>
+        <p>AV. EVA PERÓN 263 (2963) - ☎ 11-2337-3961 - (1718) S.A. DE PADUA</p>
+      </div>
+
+      <div class="client-data-grid">
+        <div>
+          <p><strong>Señor:</strong> <span id="lbl-client"></span></p>
+          <p><strong>Marca:</strong> <span id="lbl-brand"></span></p>
+          <p><strong>Nº Motor:</strong> <span id="lbl-engine"></span></p>
+        </div>
+        <div>
+          <p><strong>Tel.:</strong> <span id="lbl-tel"></span></p>
+          <p><strong>PRESUPUESTO N°:</strong> <input type="text" value="016170" style="width: 80px; padding: 1px; font-weight: bold; border: none; border-bottom: 1px solid #000;"></p>
+        </div>
+      </div>
+
+      <table class="tabla-presupuesto">
+        <thead>
+          <tr>
+            <th>DETALLE</th>
+            <th class="col-si">SI</th>
+            <th class="col-importe">IMPORTE ($)</th>
+          </tr>
+        </thead>
+        <tbody id="budget-body">
+          <!-- Tareas generadas dinámicamente -->
+        </tbody>
+      </table>
+
+      <button class="no-print" style="margin-top: 15px; padding: 12px;" onclick="window.print()">Imprimir / Guardar PDF</button>
+    </div>
+
+  </div>
+
+  <!-- PESTAÑA 2: GESTIÓN DE INVENTARIO -->
+  <div id="tab-inventario" class="tab-content">
+    
+    <div class="card">
+      <h2>Alta / Edición de Motor</h2>
+      <div class="form-grid">
+        <div>
+          <label>Nomenclatura del Motor:</label>
+          <input type="text" id="new-engine-name" placeholder="Ej: VW AP 1.6 / Fiat Fire 1.4">
+        </div>
+        <div>
+          <label>Tipo / Categoría de Cilindrada:</label>
+          <select id="new-engine-category">
+            <option value="4c_chico">4 Cilindros Chico</option>
+            <option value="4c_grande">4 Cilindros Grande</option>
+            <option value="6c_chico">6 Cilindros Chico</option>
+            <option value="6c_grande">6 Cilindros Grande</option>
+          </select>
+        </div>
+      </div>
+      <button style="max-width: 200px;" onclick="guardarMotor()">Guardar Motor</button>
+    </div>
+
+    <div class="card">
+      <h2>Lista de Motores Registrados</h2>
+      <ul id="engine-list" style="list-style: none;"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Matriz de Precios Base por Categoría</h2>
+      <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px;">Selecciona la categoría para configurar el precio por defecto de los 32 trabajos:</p>
+      
+      <div style="max-width: 300px; margin-bottom: 15px;">
+        <label>Categoría a Editar:</label>
+        <select id="edit-category-select" onchange="renderCategoryPricesEditor()">
+          <option value="4c_chico">4 Cilindros Chico</option>
+          <option value="4c_grande">4 Cilindros Grande</option>
+          <option value="6c_chico">6 Cilindros Chico</option>
+          <option value="6c_grande">6 Cilindros Grande</option>
+        </select>
+      </div>
+
+      <div id="category-prices-editor" class="price-matrix-grid">
+        <!-- Generado dinámicamente con las 32 tareas -->
+      </div>
+
+      <button style="max-width: 250px; margin-top: 15px;" onclick="guardarPreciosCategorias()">Guardar Precios de esta Categoría</button>
+    </div>
+
+  </div>
+
+  <script>
+    // Tareas fijas idénticas al papel físico
+    const MASTER_TASKS = [
+      { id: "t1", name: "Rectificar Cilindros y Bruñidos" },
+      { id: "t2", name: "Colocar Pistones" },
+      { id: "t3", name: "Pernos Ajustados" },
+      { id: "t4", name: "Aros" },
+      { id: "t5", name: "Bujes Ajustados / Empernar" },
+      { id: "t6", name: "Rectificar Cigueñal / Pulir" },
+      { id: "t7", name: "Cojinetes de Bielas" },
+      { id: "t8", name: "Cojinetes de Bancadas" },
+      { id: "t9", name: "Axiales" },
+      { id: "t10", name: "Bujes de Levas / Bujes Comando" },
+      { id: "t11", name: "Fresado de Asiento" },
+      { id: "t12", name: "Frentear Tapa / Block" },
+      { id: "t13", name: "Armado de Tapa / Retenes / Regulada / Pastillas" },
+      { id: "t14", name: "Colocar Tapones / Block / Cigueñal" },
+      { id: "t15", name: "Lavado de Block / Tapa" },
+      { id: "t16", name: "Ajuste de Bielas / Bancadas" },
+      { id: "t17", name: "Interior de Bielas" },
+      { id: "t18", name: "Enchavetado de Motor" },
+      { id: "t19", name: "Probar Bomba" },
+      { id: "subtotal_marker", isSubtotal: true },
+      { id: "t20", name: "Válvulas Nuevas" },
+      { id: "t21", name: "Guías Ajustar" },
+      { id: "t22", name: "Casquillos" },
+      { id: "t23", name: "Relleno de Tapa" },
+      { id: "t24", name: "Encamisado" },
+      { id: "t25", name: "Junta / Retenes" },
+      { id: "t26", name: "Bulones" },
+      { id: "t27", name: "Bomba" },
+      { id: "t28", name: "Árbol" },
+      { id: "t29", name: "Alesado" },
+      { id: "t30", name: "P. Hidráulica" },
+      { id: "t31", name: "Botadores" },
+      { id: "t32", name: "Otros Detalles" }
+    ];
+
+    const defaultEngines = [
+      { name: "VW AP 1.6 / 1.8", category: "4c_chico" },
+      { name: "Toyota Hilux 3.0 1KD", category: "4c_grande" },
+      { name: "Ford Falcon 221 / 188", category: "6c_grande" }
+    ];
+
+    let engines = JSON.parse(localStorage.getItem("padua_engines")) || defaultEngines;
+    let categoryPrices = JSON.parse(localStorage.getItem("padua_cat_prices")) || {
+      "4c_chico": {}, "4c_grande": {}, "6c_chico": {}, "6c_grande": {}
+    };
+
+    function init() {
+      renderBudgetTable();
+      updateEngineSelect();
+      renderEngineList();
+      renderCategoryPricesEditor();
+      bindClientInputs();
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      if(tabName === 'presupuestador') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('tab-presupuestador').classList.add('active');
+      } else {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('tab-inventario').classList.add('active');
+      }
+    }
+
+    function bindClientInputs() {
+      const fields = ['client-name', 'client-brand', 'engine-num', 'client-tel'];
+      const labels = ['lbl-client', 'lbl-brand', 'lbl-engine', 'lbl-tel'];
+      fields.forEach((field, i) => {
+        document.getElementById(field).addEventListener('input', (e) => {
+          document.getElementById(labels[i]).textContent = e.target.value;
+        });
+      });
+    }
+
+    function renderBudgetTable() {
+      const tbody = document.getElementById("budget-body");
+      tbody.innerHTML = "";
+
+      MASTER_TASKS.forEach(task => {
+        if(task.isSubtotal) {
+          tbody.innerHTML += `
+            <tr class="subtotal-row">
+              <td colspan="2" style="text-align: right;">SUB-TOTAL</td>
+              <td class="col-importe" id="val-subtotal">$ 0</td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML += `
+          <tr>
+            <td>${task.name}</td>
+            <td class="col-si">
+              <input type="checkbox" class="task-check" id="chk-${task.id}" onchange="recalcularTotales()" style="width: auto; margin:0;">
+            </td>
+            <td class="col-importe">
+              <input type="number" class="task-price" id="prc-${task.id}" value="0" oninput="recalcularTotales()" style="width: 100%; border:none; text-align:right; font-weight:bold;">
+            </td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML += `
+        <tr class="total-row">
+          <td colspan="2" style="text-align: right;">¡Gracias por su Confianza! TOTAL</td>
+          <td class="col-importe" id="val-total">$ 0</td>
+        </tr>
+      `;
+    }
+
+    function cargarPreciosMotor() {
+      const selectedIndex = document.getElementById("select-engine").value;
+      if(selectedIndex === "") return;
+
+      const engine = engines[selectedIndex];
+      const prices = categoryPrices[engine.category] || {};
+
+      MASTER_TASKS.forEach(task => {
+        if(!task.isSubtotal) {
+          const inputPrice = document.getElementById(`prc-${task.id}`);
+          inputPrice.value = prices[task.id] || 0;
+        }
+      });
+      recalcularTotales();
+    }
+
+    function recalcularTotales() {
+      let subtotal = 0;
+      let total = 0;
+      let isPastSubtotal = false;
+
+      MASTER_TASKS.forEach(task => {
+        if(task.isSubtotal) {
+          isPastSubtotal = true;
+          return;
+        }
+
+        const chk = document.getElementById(`chk-${task.id}`);
+        const prc = parseFloat(document.getElementById(`prc-${task.id}`).value) || 0;
+
+        if(chk && chk.checked) {
+          if(!isPastSubtotal) {
+            subtotal += prc;
+          }
+          total += prc;
+        }
+      });
+
+      document.getElementById("val-subtotal").textContent = `$ ${subtotal.toLocaleString()}`;
+      document.getElementById("val-total").textContent = `$ ${total.toLocaleString()}`;
+    }
+
+    // --- GESTIÓN INVENTARIO Y MATRIZ DE PRECIOS ---
+    function guardarMotor() {
+      const name = document.getElementById("new-engine-name").value.trim();
+      const category = document.getElementById("new-engine-category").value;
+
+      if(!name) return alert("Ingrese el nombre/nomenclatura del motor.");
+
+      engines.push({ name, category });
+      localStorage.setItem("padua_engines", JSON.stringify(engines));
+      
+      document.getElementById("new-engine-name").value = "";
+      updateEngineSelect();
+      renderEngineList();
+    }
+
+    function borrarMotor(index) {
+      if(confirm("¿Eliminar este motor?")) {
+        engines.splice(index, 1);
+        localStorage.setItem("padua_engines", JSON.stringify(engines));
+        updateEngineSelect();
+        renderEngineList();
+      }
+    }
+
+    function updateEngineSelect() {
+      const select = document.getElementById("select-engine");
+      select.innerHTML = '<option value="">-- Seleccionar de la lista --</option>';
+      engines.forEach((eng, i) => {
+        select.innerHTML += `<option value="${i}">${eng.name} (${getCategoryLabel(eng.category)})</option>`;
+      });
+    }
+
+    function renderEngineList() {
+      const ul = document.getElementById("engine-list");
+      ul.innerHTML = "";
+      engines.forEach((eng, i) => {
+        ul.innerHTML += `
+          <li style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid var(--border);">
+            <span><strong>${eng.name}</strong> - <em>${getCategoryLabel(eng.category)}</em></span>
+            <button class="btn-danger" style="width:auto; padding:4px 8px;" onclick="borrarMotor(${i})">Borrar</button>
+          </li>
+        `;
+      });
+    }
+
+    function getCategoryLabel(cat) {
+      const labels = {
+        "4c_chico": "4 Cil. Chico",
+        "4c_grande": "4 Cil. Grande",
+        "6c_chico": "6 Cil. Chico",
+        "6c_grande": "6 Cil. Grande"
+      };
+      return labels[cat] || cat;
+    }
+
+    function renderCategoryPricesEditor() {
+      const cat = document.getElementById("edit-category-select").value;
+      const container = document.getElementById("category-prices-editor");
+      const currentPrices = categoryPrices[cat] || {};
+      
+      let html = "";
+      MASTER_TASKS.forEach(task => {
+        if(!task.isSubtotal) {
+          const val = currentPrices[task.id] || 0;
+          html += `
+            <div class="price-item">
+              <label for="cat-price-${task.id}">${task.name}:</label>
+              <input type="number" id="cat-price-${task.id}" value="${val}" min="0">
+            </div>
+          `;
+        }
+      });
+      container.innerHTML = html;
+    }
+
+    function guardarPreciosCategorias() {
+      const cat = document.getElementById("edit-category-select").value;
+      if(!categoryPrices[cat]) categoryPrices[cat] = {};
+
+      MASTER_TASKS.forEach(task => {
+        if(!task.isSubtotal) {
+          const input = document.getElementById(`cat-price-${task.id}`);
+          if(input) {
+            categoryPrices[cat][task.id] = parseFloat(input.value) || 0;
+          }
+        }
+      });
+
+      localStorage.setItem("padua_cat_prices", JSON.stringify(categoryPrices));
+      alert(`Precios guardados para la categoría: ${getCategoryLabel(cat)}`);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
