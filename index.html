@@ -221,9 +221,8 @@
     </div>
 
   </div>
-
-  <script>
-    // Configuración de GitHub API
+<script>
+  // Configuración de GitHub API
     const GH_USER = "rama8255";       // Reemplazar por tu usuario de GitHub
     const GH_REPO = "RectificacionPaduaPresupuestos";      // Reemplazar por el nombre del repositorio
     const GH_PATH = "inventario.json"; 
@@ -265,7 +264,6 @@
       { id: "t32", name: "Otros Detalles" }
     ];
 
-    // Motores iniciales por defecto si no hay conexión
     const defaultEngines = [
       { name: "VW AP 1.6 / 1.8", category: "4c_chico" },
       { name: "Toyota Hilux 3.0 1KD", category: "4c_grande" },
@@ -283,35 +281,40 @@
       bindClientInputs();
       updateEngineSelect();
       renderEngineList();
-      renderCategoryPricesEditor(); // Renderiza inmediatamente los 32 campos
+      renderCategoryPricesEditor();
       
-      // Intentar cargar la base de datos de GitHub si están configuradas las credenciales
       if(GH_USER !== "TU_USUARIO_GITHUB" && GH_TOKEN !== "github_pat_11AAAAA...") {
         fetchInventoryFromGitHub();
       }
     }
 
-    function showStatus(message, type) {
+    function showStatus(message, type, persistent = false) {
       const statusDiv = document.getElementById("sync-status");
       statusDiv.style.display = "block";
       statusDiv.className = `status-${type}`;
       statusDiv.textContent = message;
-      if (type !== 'loading') {
-        setTimeout(() => { statusDiv.style.display = "none"; }, 5000);
+      if (type !== 'loading' && !persistent) {
+        setTimeout(() => { statusDiv.style.display = "none"; }, 8000);
       }
     }
 
-    // --- LEER DE GITHUB ---
+    // --- LEER DE GITHUB CON DIAGNÓSTICO DETALLADO ---
     async function fetchInventoryFromGitHub() {
       showStatus("Cargando datos desde GitHub...", "loading");
       const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${GH_PATH}`;
 
       try {
         const response = await fetch(url, {
-          headers: { "Authorization": `token ${GH_TOKEN}` }
+          headers: { 
+            "Authorization": `Bearer ${GH_TOKEN}`,
+            "Accept": "application/vnd.github.v3+json"
+          }
         });
 
-        if (!response.ok) throw new Error("No se pudo obtener el archivo de GitHub");
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(`Status ${response.status}: ${errData.message || 'Error desconocido'}`);
+        }
 
         const data = await response.json();
         fileSHA = data.sha;
@@ -327,11 +330,11 @@
         showStatus("¡Datos sincronizados correctamente con GitHub!", "success");
       } catch (err) {
         console.error(err);
-        showStatus("Atención: No se pudo conectar a GitHub. Se usarán datos locales temporalmente.", "error");
+        showStatus(`Error al leer GitHub: ${err.message}`, "error", true);
       }
     }
 
-    // --- GUARDAR EN GITHUB ---
+    // --- GUARDAR EN GITHUB CON DIAGNÓSTICO DETALLADO ---
     async function saveInventoryToGitHub() {
       showStatus("Guardando cambios en GitHub...", "loading");
       const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${GH_PATH}`;
@@ -353,20 +356,24 @@
         const response = await fetch(url, {
           method: "PUT",
           headers: {
-            "Authorization": `token ${GH_TOKEN}`,
-            "Content-Type": "application/json"
+            "Authorization": `Bearer ${GH_TOKEN}`,
+            "Content-Type": "application/json",
+            "Accept": "application/vnd.github.v3+json"
           },
           body: JSON.stringify(bodyObj)
         });
 
-        if (!response.ok) throw new Error("Error al intentar guardar en GitHub");
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(`Status ${response.status}: ${errData.message || 'Error al guardar'}`);
+        }
 
         const data = await response.json();
         fileSHA = data.content.sha;
         showStatus("¡Guardado correctamente en GitHub!", "success");
       } catch (err) {
         console.error(err);
-        showStatus("Error al guardar en GitHub. Verifique que 'inventario.json' exista y el Token sea correcto.", "error");
+        showStatus(`Error al guardar en GitHub: ${err.message}`, "error", true);
       }
     }
 
