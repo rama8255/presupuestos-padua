@@ -1,0 +1,13 @@
+{
+  "engines": [
+    { "name": "VW AP 1.6 / 1.8", "category": "4c_chico" },
+    { "name": "Toyota Hilux 3.0 1KD", "category": "4c_grande" },
+    { "name": "Ford Falcon 221 / 188", "category": "6c_grande" }
+  ],
+  "categoryPrices": {
+    "4c_chico": {},
+    "4c_grande": {},
+    "6c_chico": {},
+    "6c_grande": {}
+  }
+}

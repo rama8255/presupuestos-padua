@@ -19,7 +19,6 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
     body { background-color: var(--bg); color: var(--text); padding: 15px; }
 
-    /* Navegación por pestañas */
     .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
     .tab-btn {
       padding: 12px 24px; font-weight: bold; background: #e2e8f0; border: none;
@@ -38,7 +37,7 @@
     button { background: var(--accent); color: white; font-weight: bold; cursor: pointer; border: none; }
     button:hover { opacity: 0.9; }
     button.btn-danger { background: var(--danger); }
-    button.btn-secondary { background: #64748b; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
 
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
 
@@ -62,7 +61,6 @@
 
     .subtotal-row, .total-row { font-weight: bold; background: #f1f5f9; }
 
-    /* Estilos del editor de precios */
     .price-matrix-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -70,58 +68,39 @@
       margin-top: 10px;
     }
     .price-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #f8fafc;
-      padding: 6px 10px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: #f8fafc; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;
     }
     .price-item label { margin: 0; font-size: 0.8rem; flex: 1; padding-right: 5px; }
     .price-item input { width: 100px; margin: 0; text-align: right; font-weight: bold; }
 
-    /* AJUSTES DE IMPRESIÓN PARA HOJA A4 ÚNICA */
-    @page {
-      size: A4 portrait;
-      margin: 8mm 10mm 8mm 10mm;
+    #sync-status {
+      padding: 10px; font-weight: bold; text-align: center; margin-bottom: 15px; border-radius: 6px; display: none;
     }
+    .status-loading { background: #e0f2fe; color: #0369a1; }
+    .status-success { background: #dcfce7; color: #15803d; }
+    .status-error { background: #fee2e2; color: #b91c1c; }
 
+    @page { size: A4 portrait; margin: 8mm 10mm 8mm 10mm; }
     @media print {
-      .no-print, .nav-tabs { display: none !important; }
+      .no-print, .nav-tabs, #sync-status { display: none !important; }
       body { background: white; padding: 0; margin: 0; }
-      .presupuesto-paper { 
-        border: 1.5px solid #000; 
-        width: 100%; 
-        max-width: 100%; 
-        padding: 8px 12px; 
-        box-sizing: border-box;
-      }
+      .presupuesto-paper { border: 1.5px solid #000; width: 100%; max-width: 100%; padding: 8px 12px; box-sizing: border-box; }
       .tab-content { display: block !important; }
       #tab-inventario { display: none !important; }
-
       .paper-header h1 { font-size: 1.3rem; }
       .paper-header p { font-size: 0.75rem; }
       .client-data-grid p { font-size: 0.8rem; }
-
-      table.tabla-presupuesto th, table.tabla-presupuesto td { 
-        padding: 1.5px 5px !important; 
-        font-size: 0.76rem !important; 
-      }
-
-      input[type="number"], input[type="text"] {
-        font-size: 0.76rem !important;
-      }
-
-      input[type="checkbox"] {
-        transform: scale(0.9);
-      }
+      table.tabla-presupuesto th, table.tabla-presupuesto td { padding: 1.5px 5px !important; font-size: 0.76rem !important; }
+      input[type="number"], input[type="text"] { font-size: 0.76rem !important; }
+      input[type="checkbox"] { transform: scale(0.9); }
     }
   </style>
 </head>
 <body>
 
-  <!-- PESTAÑAS -->
+  <div id="sync-status"></div>
+
   <div class="nav-tabs no-print">
     <button class="tab-btn active" onclick="switchTab('presupuestador')">Crear Presupuesto</button>
     <button class="tab-btn" onclick="switchTab('inventario')">Gestión de Inventario y Precios</button>
@@ -186,9 +165,7 @@
             <th class="col-importe">IMPORTE ($)</th>
           </tr>
         </thead>
-        <tbody id="budget-body">
-          <!-- Tareas generadas dinámicamente -->
-        </tbody>
+        <tbody id="budget-body"></tbody>
       </table>
 
       <button class="no-print" style="margin-top: 15px; padding: 12px;" onclick="window.print()">Imprimir / Guardar PDF</button>
@@ -216,7 +193,7 @@
           </select>
         </div>
       </div>
-      <button style="max-width: 200px;" onclick="guardarMotor()">Guardar Motor</button>
+      <button id="btn-save-engine" style="max-width: 200px;" onclick="guardarMotor()">Guardar Motor en GitHub</button>
     </div>
 
     <div class="card">
@@ -238,17 +215,20 @@
         </select>
       </div>
 
-      <div id="category-prices-editor" class="price-matrix-grid">
-        <!-- Generado dinámicamente con las 32 tareas -->
-      </div>
+      <div id="category-prices-editor" class="price-matrix-grid"></div>
 
-      <button style="max-width: 250px; margin-top: 15px;" onclick="guardarPreciosCategorias()">Guardar Precios de esta Categoría</button>
+      <button id="btn-save-prices" style="max-width: 250px; margin-top: 15px;" onclick="guardarPreciosCategorias()">Guardar Precios en GitHub</button>
     </div>
 
   </div>
 
   <script>
-    // Tareas fijas idénticas al papel físico
+    // Configuración de GitHub API
+    const GH_USER = "TU_USUARIO_GITHUB";       // Reemplazar por tu usuario de GitHub
+    const GH_REPO = "presupuestos-padua";      // Reemplazar por el nombre del repositorio
+    const GH_PATH = "inventario.json"; 
+    const GH_TOKEN = "github_pat_11AAAAA...";   // Reemplazar por tu Personal Access Token (PAT)
+
     const MASTER_TASKS = [
       { id: "t1", name: "Rectificar Cilindros y Bruñidos" },
       { id: "t2", name: "Colocar Pistones" },
@@ -285,23 +265,92 @@
       { id: "t32", name: "Otros Detalles" }
     ];
 
-    const defaultEngines = [
-      { name: "VW AP 1.6 / 1.8", category: "4c_chico" },
-      { name: "Toyota Hilux 3.0 1KD", category: "4c_grande" },
-      { name: "Ford Falcon 221 / 188", category: "6c_grande" }
-    ];
+    let engines = [];
+    let categoryPrices = {};
+    let fileSHA = ""; // SHA necesario para sobreescribir el archivo en la API de GitHub
 
-    let engines = JSON.parse(localStorage.getItem("padua_engines")) || defaultEngines;
-    let categoryPrices = JSON.parse(localStorage.getItem("padua_cat_prices")) || {
-      "4c_chico": {}, "4c_grande": {}, "6c_chico": {}, "6c_grande": {}
-    };
-
-    function init() {
+    async function init() {
       renderBudgetTable();
-      updateEngineSelect();
-      renderEngineList();
-      renderCategoryPricesEditor();
       bindClientInputs();
+      await fetchInventoryFromGitHub();
+    }
+
+    function showStatus(message, type) {
+      const statusDiv = document.getElementById("sync-status");
+      statusDiv.style.display = "block";
+      statusDiv.className = `status-${type}`;
+      statusDiv.textContent = message;
+      if (type !== 'loading') {
+        setTimeout(() => { statusDiv.style.display = "none"; }, 4000);
+      }
+    }
+
+    // --- LEER DE GITHUB ---
+    async function fetchInventoryFromGitHub() {
+      showStatus("Cargando inventario desde GitHub...", "loading");
+      const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${GH_PATH}`;
+
+      try {
+        const response = await fetch(url, {
+          headers: { "Authorization": `token ${GH_TOKEN}` }
+        });
+
+        if (!response.ok) throw new Error("Error al conectar con GitHub");
+
+        const data = await response.json();
+        fileSHA = data.sha;
+        
+        // Decodificar Base64
+        const content = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+        
+        engines = content.engines || [];
+        categoryPrices = content.categoryPrices || {};
+
+        updateEngineSelect();
+        renderEngineList();
+        renderCategoryPricesEditor();
+        showStatus("¡Datos sincronizados correctamente con GitHub!", "success");
+      } catch (err) {
+        console.error(err);
+        showStatus("Error al cargar datos de GitHub. Verifique la configuración del Token.", "error");
+      }
+    }
+
+    // --- GUARDAR EN GITHUB ---
+    async function saveInventoryToGitHub() {
+      showStatus("Guardando cambios en GitHub...", "loading");
+      const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${GH_PATH}`;
+
+      const payloadData = {
+        engines: engines,
+        categoryPrices: categoryPrices
+      };
+
+      const contentEncoded = btoa(unescape(encodeURIComponent(JSON.stringify(payloadData, null, 2))));
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `token ${GH_TOKEN}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: "Actualización de inventario desde la App Web",
+            content: contentEncoded,
+            sha: fileSHA
+          })
+        });
+
+        if (!response.ok) throw new Error("Error al guardar en GitHub");
+
+        const data = await response.json();
+        fileSHA = data.content.sha; // Actualizar SHA tras guardar
+        showStatus("¡Inventario actualizado en GitHub con éxito!", "success");
+      } catch (err) {
+        console.error(err);
+        showStatus("Error al guardar en GitHub. Intente nuevamente.", "error");
+      }
     }
 
     function switchTab(tabName) {
@@ -405,27 +454,26 @@
       document.getElementById("val-total").textContent = `$ ${total.toLocaleString()}`;
     }
 
-    // --- GESTIÓN INVENTARIO Y MATRIZ DE PRECIOS ---
-    function guardarMotor() {
+    async function guardarMotor() {
       const name = document.getElementById("new-engine-name").value.trim();
       const category = document.getElementById("new-engine-category").value;
 
       if(!name) return alert("Ingrese el nombre/nomenclatura del motor.");
 
       engines.push({ name, category });
-      localStorage.setItem("padua_engines", JSON.stringify(engines));
-      
       document.getElementById("new-engine-name").value = "";
+      
       updateEngineSelect();
       renderEngineList();
+      await saveInventoryToGitHub();
     }
 
-    function borrarMotor(index) {
+    async function borrarMotor(index) {
       if(confirm("¿Eliminar este motor?")) {
         engines.splice(index, 1);
-        localStorage.setItem("padua_engines", JSON.stringify(engines));
         updateEngineSelect();
         renderEngineList();
+        await saveInventoryToGitHub();
       }
     }
 
@@ -480,7 +528,7 @@
       container.innerHTML = html;
     }
 
-    function guardarPreciosCategorias() {
+    async function guardarPreciosCategorias() {
       const cat = document.getElementById("edit-category-select").value;
       if(!categoryPrices[cat]) categoryPrices[cat] = {};
 
@@ -493,8 +541,7 @@
         }
       });
 
-      localStorage.setItem("padua_cat_prices", JSON.stringify(categoryPrices));
-      alert(`Precios guardados para la categoría: ${getCategoryLabel(cat)}`);
+      await saveInventoryToGitHub();
     }
 
     window.onload = init;
