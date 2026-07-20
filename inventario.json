@@ -1,5 +1,10 @@
 {
-  "engines": [],
+  "engines": [
+    {
+      "name": "asdasdasd",
+      "category": "6c_grande"
+    }
+  ],
   "categoryPrices": {
     "4c_chico": {
       "t1": 20000,
