@@ -37,7 +37,6 @@
     button { background: var(--accent); color: white; font-weight: bold; cursor: pointer; border: none; }
     button:hover { opacity: 0.9; }
     button.btn-danger { background: var(--danger); }
-    button:disabled { background: #94a3b8; cursor: not-allowed; }
 
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
 
@@ -61,6 +60,7 @@
 
     .subtotal-row, .total-row { font-weight: bold; background: #f1f5f9; }
 
+    /* Estilos de la matriz de precios */
     .price-matrix-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -193,7 +193,7 @@
           </select>
         </div>
       </div>
-      <button id="btn-save-engine" style="max-width: 200px;" onclick="guardarMotor()">Guardar Motor en GitHub</button>
+      <button id="btn-save-engine" style="max-width: 200px;" onclick="guardarMotor()">Guardar Motor</button>
     </div>
 
     <div class="card">
@@ -217,17 +217,17 @@
 
       <div id="category-prices-editor" class="price-matrix-grid"></div>
 
-      <button id="btn-save-prices" style="max-width: 250px; margin-top: 15px;" onclick="guardarPreciosCategorias()">Guardar Precios en GitHub</button>
+      <button id="btn-save-prices" style="max-width: 250px; margin-top: 15px;" onclick="guardarPreciosCategorias()">Guardar Precios de esta Categoría</button>
     </div>
 
   </div>
 
   <script>
     // Configuración de GitHub API
-    const GH_USER = "rama8255";       // Reemplazar por tu usuario de GitHub
-    const GH_REPO = "RectificacionPaduaPresupuestos";      // Reemplazar por el nombre del repositorio
+    const GH_USER = "TU_USUARIO_GITHUB";       // Reemplazar por tu usuario de GitHub
+    const GH_REPO = "presupuestos-padua";      // Reemplazar por el nombre del repositorio
     const GH_PATH = "inventario.json"; 
-    const GH_TOKEN = "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";   // Reemplazar por tu Personal Access Token (PAT)
+    const GH_TOKEN = "github_pat_11AAAAA...";   // Reemplazar por tu Personal Access Token (PAT)
 
     const MASTER_TASKS = [
       { id: "t1", name: "Rectificar Cilindros y Bruñidos" },
@@ -265,14 +265,30 @@
       { id: "t32", name: "Otros Detalles" }
     ];
 
-    let engines = [];
-    let categoryPrices = {};
-    let fileSHA = ""; // SHA necesario para sobreescribir el archivo en la API de GitHub
+    // Motores iniciales por defecto si no hay conexión
+    const defaultEngines = [
+      { name: "VW AP 1.6 / 1.8", category: "4c_chico" },
+      { name: "Toyota Hilux 3.0 1KD", category: "4c_grande" },
+      { name: "Ford Falcon 221 / 188", category: "6c_grande" }
+    ];
 
-    async function init() {
+    let engines = defaultEngines;
+    let categoryPrices = {
+      "4c_chico": {}, "4c_grande": {}, "6c_chico": {}, "6c_grande": {}
+    };
+    let fileSHA = "";
+
+    function init() {
       renderBudgetTable();
       bindClientInputs();
-      await fetchInventoryFromGitHub();
+      updateEngineSelect();
+      renderEngineList();
+      renderCategoryPricesEditor(); // Renderiza inmediatamente los 32 campos
+      
+      // Intentar cargar la base de datos de GitHub si están configuradas las credenciales
+      if(GH_USER !== "TU_USUARIO_GITHUB" && GH_TOKEN !== "github_pat_11AAAAA...") {
+        fetchInventoryFromGitHub();
+      }
     }
 
     function showStatus(message, type) {
@@ -281,13 +297,13 @@
       statusDiv.className = `status-${type}`;
       statusDiv.textContent = message;
       if (type !== 'loading') {
-        setTimeout(() => { statusDiv.style.display = "none"; }, 4000);
+        setTimeout(() => { statusDiv.style.display = "none"; }, 5000);
       }
     }
 
     // --- LEER DE GITHUB ---
     async function fetchInventoryFromGitHub() {
-      showStatus("Cargando inventario desde GitHub...", "loading");
+      showStatus("Cargando datos desde GitHub...", "loading");
       const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${GH_PATH}`;
 
       try {
@@ -295,16 +311,15 @@
           headers: { "Authorization": `token ${GH_TOKEN}` }
         });
 
-        if (!response.ok) throw new Error("Error al conectar con GitHub");
+        if (!response.ok) throw new Error("No se pudo obtener el archivo de GitHub");
 
         const data = await response.json();
         fileSHA = data.sha;
         
-        // Decodificar Base64
         const content = JSON.parse(decodeURIComponent(escape(atob(data.content))));
         
-        engines = content.engines || [];
-        categoryPrices = content.categoryPrices || {};
+        if (content.engines) engines = content.engines;
+        if (content.categoryPrices) categoryPrices = content.categoryPrices;
 
         updateEngineSelect();
         renderEngineList();
@@ -312,7 +327,7 @@
         showStatus("¡Datos sincronizados correctamente con GitHub!", "success");
       } catch (err) {
         console.error(err);
-        showStatus("Error al cargar datos de GitHub. Verifique la configuración del Token.", "error");
+        showStatus("Atención: No se pudo conectar a GitHub. Se usarán datos locales temporalmente.", "error");
       }
     }
 
@@ -329,27 +344,29 @@
       const contentEncoded = btoa(unescape(encodeURIComponent(JSON.stringify(payloadData, null, 2))));
 
       try {
+        const bodyObj = {
+          message: "Actualización de inventario",
+          content: contentEncoded
+        };
+        if(fileSHA) bodyObj.sha = fileSHA;
+
         const response = await fetch(url, {
           method: "PUT",
           headers: {
             "Authorization": `token ${GH_TOKEN}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            message: "Actualización de inventario desde la App Web",
-            content: contentEncoded,
-            sha: fileSHA
-          })
+          body: JSON.stringify(bodyObj)
         });
 
-        if (!response.ok) throw new Error("Error al guardar en GitHub");
+        if (!response.ok) throw new Error("Error al intentar guardar en GitHub");
 
         const data = await response.json();
-        fileSHA = data.content.sha; // Actualizar SHA tras guardar
-        showStatus("¡Inventario actualizado en GitHub con éxito!", "success");
+        fileSHA = data.content.sha;
+        showStatus("¡Guardado correctamente en GitHub!", "success");
       } catch (err) {
         console.error(err);
-        showStatus("Error al guardar en GitHub. Intente nuevamente.", "error");
+        showStatus("Error al guardar en GitHub. Verifique que 'inventario.json' exista y el Token sea correcto.", "error");
       }
     }
 
