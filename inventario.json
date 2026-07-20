@@ -1,5 +1,10 @@
 {
-  "engines": [],
+  "engines": [
+    {
+      "name": "Fiat tipo",
+      "category": "4c_chico"
+    }
+  ],
   "categoryPrices": {
     "4c_chico": {
       "t1": 20000,
